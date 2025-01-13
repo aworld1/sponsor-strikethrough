@@ -1,52 +1,48 @@
 (function () {
-
-    // 1) Immediately check if we're on a recognized search page:
-    const url = window.location.href.toLowerCase();
-    
-    const isGoogleSearch = url.includes("google.") && url.includes("/search?");
-    const isBingSearch   = url.includes("bing.com/search?");
-    const isYahooSearch  = url.includes("search.yahoo.com/search?");
-    const isDuckSearch   = url.includes("duckduckgo.com/?");
-    
-    // 2) If this page is NOT one of those search result URLs, bail out:
-    if (!(isGoogleSearch || isBingSearch || isYahooSearch || isDuckSearch)) {
-        return;
-    }
-
-    // Ad-related keywords (expand as needed)
+    // Ad-related keywords
     const sponsoredKeywords = [
-        "ad", "ads", "sponsored",
+        "ad", "ads", "sponsored", "promo", "promoted",
         "annonce", "annuncio", "anuncio",
         "anzeigen", "werbung",
         "sponsorizzato", "sponsorizado",
         "gesponsord",
-        "広告",   // Japanese
-        "реклама" // Russian
+        "広告",     // Japanese
+        "реклама", // Russian
+        "reklama"
     ];
 
-    // Toggled settings
+    // Ad container selectors
+    const adSelectors = [
+        "[data-text-ad]",
+        ".uEierd",
+        ".b_ad", ".b_adurl", ".ads",
+        ".compAd", "[data-adblock='true']",
+        ".sponsored", ".promotedLink", ".promoted-tweet"
+    ];
+
     let isStrikethroughEnabled = true;
     let isOpacityEnabled = true;
     let isRedBackgroundEnabled = false;
     let isHideSponsoredEnabled = false;
-
-    // Count how many sponsored *containers* we find on this page
+    let whitelistDomains = [];
     let foundOnPage = 0;
 
-    // DOM selectors for potential ad containers across multiple search engines
-    const adSelectors = [
-        // Google
-        "[data-text-ad]", ".uEierd",
-        // Bing
-        ".b_ad", ".b_adurl", ".ads",
-        // Yahoo
-        ".compAd", "[data-adblock='true']",
-        // DuckDuckGo
-        // (some dynamic selectors or ephemeral classes might need updating)
-    ];
+    /**
+     * We only run on known search pages (Google, Bing, Yahoo, DuckDuckGo).
+     * If you prefer enumerating in the manifest, you can remove this check.
+     */
+    function isSearchPage() {
+        const url = window.location.href.toLowerCase();
+        return (
+            (url.includes("google.") && url.includes("/search?")) ||
+            url.includes("bing.com/search?") ||
+            url.includes("search.yahoo.com/search?") ||
+            url.includes("duckduckgo.com/?")
+        );
+    }
 
     /**
-     * Determine if the element is exactly a "Sponsored"/"Ad" label (rather than the container).
+     * Check if an element text is one of our "ad" or "sponsored" keywords.
      */
     function isSponsoredLabel(el) {
         if (!el || !el.innerText) return false;
@@ -55,201 +51,210 @@
     }
 
     /**
-     * Apply the relevant sponsor classes (or hide) to the container.
-     * - If `isHideSponsoredEnabled`, we simply `.sponsor-hidden`.
-     * - Otherwise, we apply whichever highlight classes are enabled.
+     * Determine if this element is part of a *dictionary definition* (for Google, etc.).
+     * If so, we skip marking it as an ad.
      */
-    function applySponsorClasses(container) {
-        if (isHideSponsoredEnabled) {
-            container.classList.add("sponsor-hidden");
-            return;
-        }
-        // If not hiding, apply style toggles
-        if (isStrikethroughEnabled) container.classList.add("sponsor-strikethrough");
-        if (isOpacityEnabled) container.classList.add("reduced-opacity");
-        if (isRedBackgroundEnabled) container.classList.add("red-background");
+    function isDictionaryDefinition(el) {
+        // For Google, many dictionary definitions appear within .lr_container
+        // or data-attrid="DictionaryHeader" or other containers like .vkc_np. 
+        // We'll do a simple check for .lr_container (Google) 
+        // You can add more checks if needed for Bing (e.g., .b_dict, etc.).
+        return !!(
+            el.closest(".lr_container") ||
+            el.closest("[data-attrid='DictionaryHeader']") ||
+            el.closest(".vkc_np.kkww4d.eawCAd.PZPZlf")
+        );
     }
 
     /**
-     * Mark the container of a found "Sponsored" label or known ad block.
-     * - We only increment `foundOnPage` once per container by checking a custom attribute.
+     * Mark the entire container (except the literal "Sponsored" label) with classes.
      */
     function markContainerAsSponsored(container) {
-        // If we haven't counted this container yet, increment once
         if (!container.hasAttribute("data-ss-counted")) {
             container.setAttribute("data-ss-counted", "true");
             foundOnPage++;
         }
-
-        // If user wants an accessible label, add it
         if (!container.hasAttribute("aria-label")) {
             container.setAttribute("aria-label", "Sponsored link");
         }
 
-        // Apply classes to container
-        applySponsorClasses(container);
-
-        // If we are not hiding, we can also apply classes to all descendants
-        if (!isHideSponsoredEnabled) {
-            container.querySelectorAll("*").forEach((child) => {
-                // Don’t strikethrough the literal label node itself
-                if (!isSponsoredLabel(child)) {
-                    if (isStrikethroughEnabled) child.classList.add("sponsor-strikethrough");
-                    if (isOpacityEnabled) child.classList.add("reduced-opacity");
-                    if (isRedBackgroundEnabled) child.classList.add("red-background");
-                }
-            });
+        // Hide or style
+        if (isHideSponsoredEnabled) {
+            container.classList.add("sponsor-hidden");
+            return;
         }
-    }
+        if (isStrikethroughEnabled) container.classList.add("sponsor-strikethrough");
+        if (isOpacityEnabled) container.classList.add("reduced-opacity");
+        if (isRedBackgroundEnabled) container.classList.add("red-background");
 
-    /**
-     * For each label text, find its container (link or itself) and mark it.
-     */
-    function markAsSponsoredByLabel(el) {
-        const container = el.closest("a") || el.closest("div");
-        if (container && container !== el) {
-            markContainerAsSponsored(container);
-        } else {
-            // The label is its own container (no parent anchor/div).
-            // So do NOT apply the styling. We might increment count once if you wish.
-        }
-    }
-
-    /**
-     * Clear out all sponsor classes and attributes from the page, so we can rescan.
-     */
-    function removeAllSponsorStyling() {
-        foundOnPage = 0; // reset count
-        const elements = document.querySelectorAll(`
-        .sponsor-strikethrough, 
-        .reduced-opacity, 
-        .red-background, 
-        .sponsor-hidden,
-        [data-ss-counted]
-      `);
-        elements.forEach((el) => {
-            el.classList.remove("sponsor-strikethrough", "reduced-opacity", "red-background", "sponsor-hidden");
-            el.removeAttribute("data-ss-counted");
-            el.removeAttribute("aria-label");
+        // Apply to children, except if they're the exact "Sponsored" label
+        container.querySelectorAll("*").forEach((child) => {
+            if (!isSponsoredLabel(child)) {
+                if (isStrikethroughEnabled) child.classList.add("sponsor-strikethrough");
+                if (isOpacityEnabled) child.classList.add("reduced-opacity");
+                if (isRedBackgroundEnabled) child.classList.add("red-background");
+            }
         });
     }
 
     /**
-     * The main scanning function to find "Sponsored" labels or known ad containers.
+     * If we see a "Sponsored" label, find the parent ad container and mark it.
+     * But skip if we're in a dictionary definition context.
+     */
+    function markAsSponsoredByLabel(labelEl) {
+        // If this is in a dictionary definition, skip
+        if (isDictionaryDefinition(labelEl)) {
+            return;
+        }
+
+        // Attempt to find a known ad container or fallback to a bigger element
+        const container =
+            labelEl.closest("[data-text-ad], .uEierd") ||
+            labelEl.closest("div") ||
+            labelEl.closest("a");
+
+        if (container && container !== labelEl) {
+            markContainerAsSponsored(container);
+        } else {
+            // If no container, at least count it once (but don't style the label)
+            if (!labelEl.hasAttribute("data-ss-counted")) {
+                labelEl.setAttribute("data-ss-counted", "true");
+                foundOnPage++;
+            }
+        }
+    }
+
+    /**
+     * Scan a DOM subtree for sponsored elements.
      */
     function scanSponsored(root) {
         if (!root) return;
 
-        // 1) Look for textual "Sponsored"/"Ad" labels
-        const textEls = root.querySelectorAll("span, div, a, h3, strong, b");
+        // 1) Text-based detection
+        const textEls = root.querySelectorAll("span, div, a, h3, strong, b, i, p");
         textEls.forEach((el) => {
             if (isSponsoredLabel(el)) {
                 markAsSponsoredByLabel(el);
             }
         });
 
-        // 2) Look for known ad containers
+        // 2) Container-based detection
         adSelectors.forEach((selector) => {
             const matches = root.querySelectorAll(selector);
             matches.forEach((adEl) => {
-                // If the container is literally a label, skip re-check
-                if (!isSponsoredLabel(adEl)) {
-                    markContainerAsSponsored(adEl);
+                // If it's a dictionary definition or literally a label, skip
+                if (isDictionaryDefinition(adEl) || isSponsoredLabel(adEl)) {
+                    return;
                 }
+                markContainerAsSponsored(adEl);
             });
         });
     }
 
-    /**
-     * After scanning, send the final "foundOnPage" count to background to update badge, totals, etc.
-     */
-    function updateBadgeAndTotals() {
-        chrome.runtime.sendMessage({
-            type: "updateBadge",
-            pageCount: foundOnPage
-        }, (response) => {
-            // The background might respond with the updated total, etc.
+    function removeAllSponsorStyling() {
+        foundOnPage = 0;
+        const elements = document.querySelectorAll(
+            ".sponsor-strikethrough, .reduced-opacity, .red-background, .sponsor-hidden, [data-ss-counted]"
+        );
+        elements.forEach((el) => {
+            el.classList.remove(
+                "sponsor-strikethrough",
+                "reduced-opacity",
+                "red-background",
+                "sponsor-hidden"
+            );
+            el.removeAttribute("data-ss-counted");
+            if (el.getAttribute("aria-label") === "Sponsored link") {
+                el.removeAttribute("aria-label");
+            }
         });
     }
 
-    /**
-     * React to newly added nodes in the DOM (for dynamic search results).
-     */
+    function updateBadge() {
+        // Optional: if you have a background.js that updates a badge
+        chrome.runtime.sendMessage({ type: "updateBadge", pageCount: foundOnPage });
+    }
+
+    function shouldRunOnDomain() {
+        const domain = window.location.hostname.toLowerCase();
+        // If domain is whitelisted
+        return !whitelistDomains.some((d) => domain.endsWith(d));
+    }
+
+    function reapply() {
+        removeAllSponsorStyling();
+        if (!shouldRunOnDomain()) return;
+        if (!isSearchPage()) return;
+        scanSponsored(document);
+        updateBadge();
+    }
+
     function setupObserver() {
         const observer = new MutationObserver((mutations) => {
-            let newNodesFound = false;
-
+            let changed = false;
             mutations.forEach((mutation) => {
                 mutation.addedNodes.forEach((node) => {
                     if (node.nodeType === 1) {
                         scanSponsored(node);
-                        newNodesFound = true;
+                        changed = true;
                     }
                 });
             });
-
-            if (newNodesFound) {
-                updateBadgeAndTotals();
-            }
+            if (changed) updateBadge();
         });
-
         observer.observe(document.body, { childList: true, subtree: true });
     }
 
-    /**
-     * Re-run the process after toggles change.
-     */
-    function reapply() {
-        removeAllSponsorStyling();
-        scanSponsored(document);
-        updateBadgeAndTotals();
-    }
-
     function init() {
-        // Load toggles from storage
         chrome.storage.sync.get(
             {
                 sponsorStrikethroughEnabled: true,
                 reduceOpacityEnabled: true,
                 redBackgroundEnabled: false,
-                hideSponsoredEnabled: false
+                hideSponsoredEnabled: false,
+                whitelistDomains: []
             },
             (data) => {
                 isStrikethroughEnabled = data.sponsorStrikethroughEnabled;
                 isOpacityEnabled = data.reduceOpacityEnabled;
                 isRedBackgroundEnabled = data.redBackgroundEnabled;
                 isHideSponsoredEnabled = data.hideSponsoredEnabled;
+                whitelistDomains = data.whitelistDomains || [];
 
-                // Initial scan
+                if (!shouldRunOnDomain()) return;
+                if (!isSearchPage()) return;
+
                 scanSponsored(document);
-                updateBadgeAndTotals();
+                updateBadge();
+                setupObserver();
             }
         );
 
-        // Observe DOM for dynamic changes
-        setupObserver();
-
-        // Listen for storage changes
+        // Listen for toggles/whitelist changes
         chrome.storage.onChanged.addListener((changes, area) => {
             if (area === "sync") {
-                let changed = false;
-                if ("sponsorStrikethroughEnabled" in changes) {
+                let changedSomething = false;
+                if (changes.sponsorStrikethroughEnabled) {
                     isStrikethroughEnabled = changes.sponsorStrikethroughEnabled.newValue;
-                    changed = true;
+                    changedSomething = true;
                 }
-                if ("reduceOpacityEnabled" in changes) {
+                if (changes.reduceOpacityEnabled) {
                     isOpacityEnabled = changes.reduceOpacityEnabled.newValue;
-                    changed = true;
+                    changedSomething = true;
                 }
-                if ("redBackgroundEnabled" in changes) {
+                if (changes.redBackgroundEnabled) {
                     isRedBackgroundEnabled = changes.redBackgroundEnabled.newValue;
-                    changed = true;
+                    changedSomething = true;
                 }
-                if ("hideSponsoredEnabled" in changes) {
+                if (changes.hideSponsoredEnabled) {
                     isHideSponsoredEnabled = changes.hideSponsoredEnabled.newValue;
-                    changed = true;
+                    changedSomething = true;
                 }
-                if (changed) {
+                if (changes.whitelistDomains) {
+                    whitelistDomains = changes.whitelistDomains.newValue;
+                    changedSomething = true;
+                }
+                if (changedSomething) {
                     reapply();
                 }
             }

@@ -1,27 +1,27 @@
-/* Strikethrough line only */
+/* 1) Strikethrough */
 .sponsor-strikethrough {
     text-decoration: line-through;
 }
 
-/* Reduced opacity (0.9) */
+/* 2) Aggressive opacity (0.9) */
 .reduced-opacity {
     opacity: 0.9;
 }
 
-/* Subtle red background */
+/* 3) Subtle red background */
 .red-background {
     background-color: #ffe6e6;
 }
 
-/* Hover/focus: temporarily show full opacity for clarity */
+/* 4) Hide sponsored element entirely */
+.sponsor-hidden {
+    display: none !important;
+}
+
+/* On hover/focus, remove opacity to see text clearly */
 .sponsor-strikethrough:hover,
 .sponsor-strikethrough:focus,
 .reduced-opacity:hover,
 .reduced-opacity:focus {
     opacity: 1 !important;
-}
-
-/* Hide sponsored element entirely (display none) */
-.sponsor-hidden {
-    display: none !important;
 }

@@ -6,19 +6,18 @@
     <title>Sponsor Strikethrough Popup</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
             margin: 0;
-            padding: 0;
-            width: 300px;
-            background-color: #f8f9fa;
+            font-family: "Segoe UI", Roboto, sans-serif;
+            background-color: #f9f9f9;
+            width: 360px;
         }
 
         .header {
+            background-color: #fff;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
             display: flex;
             align-items: center;
-            padding: 10px;
-            background-color: #ffffff;
-            border-bottom: 1px solid #ccc;
         }
 
         .header img {
@@ -29,11 +28,23 @@
 
         .header .title {
             font-size: 18px;
-            font-weight: bold;
+            font-weight: 600;
         }
 
         .content {
-            padding: 10px 15px;
+            padding: 15px;
+        }
+
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+
+        .toggle-label {
+            font-size: 14px;
+            color: #333;
         }
 
         .switch {
@@ -41,7 +52,6 @@
             display: inline-block;
             width: 40px;
             height: 20px;
-            margin-right: 8px;
         }
 
         .switch input {
@@ -58,7 +68,7 @@
             right: 0;
             bottom: 0;
             background-color: #ccc;
-            transition: .4s;
+            transition: 0.4s;
             border-radius: 20px;
         }
 
@@ -69,8 +79,8 @@
             width: 14px;
             left: 3px;
             bottom: 3px;
-            background-color: white;
-            transition: .4s;
+            background-color: #fff;
+            transition: 0.4s;
             border-radius: 50%;
         }
 
@@ -82,37 +92,72 @@
             transform: translateX(20px);
         }
 
-        .option-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 12px;
-        }
-
-        .option-label {
-            font-size: 14px;
-        }
-
-        /* Counters area, similar to Adblock */
-        .counters {
-            margin-top: 10px;
+        .whitelist-section {
             background-color: #fff;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            padding: 8px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
         }
 
-        .counters h3 {
-            margin: 0 0 5px;
+        .whitelist-section h3 {
+            margin: 0 0 8px 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .whitelist-input {
+            display: flex;
+            margin-bottom: 8px;
+        }
+
+        .whitelist-input input {
+            flex: 1;
+            padding: 6px 8px;
             font-size: 14px;
-            font-weight: bold;
+            border: 1px solid #ccc;
+            border-radius: 4px 0 0 4px;
+            outline: none;
         }
 
-        .counter-row {
+        .whitelist-input button {
+            background-color: #0070ba;
+            color: #fff;
+            border: none;
+            padding: 6px 10px;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .whitelist-list {
+            list-style: none;
+            padding-left: 15px;
+            margin: 0;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+
+        .whitelist-list li {
             display: flex;
             justify-content: space-between;
+            margin-bottom: 6px;
+        }
+
+        .whitelist-list span {
             font-size: 14px;
-            margin-bottom: 5px;
+            color: #444;
+        }
+
+        .whitelist-list button {
+            background-color: #f44336;
+            color: #fff;
+            border: none;
+            padding: 3px 6px;
+            font-size: 12px;
+            cursor: pointer;
+            border-radius: 4px;
         }
 
         .donate-btn {
@@ -126,7 +171,6 @@
             border-radius: 4px;
             text-align: center;
             font-size: 14px;
-            margin-top: 15px;
         }
 
         .donate-btn:hover {
@@ -142,48 +186,50 @@
     </div>
 
     <div class="content">
-        <div class="option-row">
-            <span class="option-label">Enable Strikethrough</span>
+        <div class="toggle-row">
+            <span class="toggle-label">Enable Strikethrough</span>
             <label class="switch">
                 <input type="checkbox" id="toggleStrikethrough" />
                 <span class="slider"></span>
             </label>
         </div>
 
-        <div class="option-row">
-            <span class="option-label">Enable Opacity</span>
+        <div class="toggle-row">
+            <span class="toggle-label">Enable Opacity</span>
             <label class="switch">
                 <input type="checkbox" id="toggleOpacity" />
                 <span class="slider"></span>
             </label>
         </div>
 
-        <div class="option-row">
-            <span class="option-label">Red Background</span>
+        <div class="toggle-row">
+            <span class="toggle-label">Red Background</span>
             <label class="switch">
                 <input type="checkbox" id="toggleRedBackground" />
                 <span class="slider"></span>
             </label>
         </div>
 
-        <div class="option-row">
-            <span class="option-label">Hide Sponsored</span>
+        <div class="toggle-row">
+            <span class="toggle-label">Hide Sponsored</span>
             <label class="switch">
                 <input type="checkbox" id="toggleHideSponsored" />
                 <span class="slider"></span>
             </label>
         </div>
 
-        <div class="counters">
-            <h3>Number of items blocked</h3>
-            <div class="counter-row">
-                <span>On this page:</span>
-                <span id="pageCount">0</span>
+        <div class="whitelist-section">
+            <h3>Whitelist</h3>
+            <p style="margin-top:0; font-size:13px; color:#666;">
+                Add domains (e.g. <strong>google.com</strong>) where the extension should not run
+            </p>
+
+            <div class="whitelist-input">
+                <input type="text" id="whitelistDomain" placeholder="e.g. google.com" />
+                <button id="addWhitelistBtn">Add</button>
             </div>
-            <div class="counter-row">
-                <span>In total:</span>
-                <span id="totalCount">0</span>
-            </div>
+
+            <ul class="whitelist-list" id="whitelistList"></ul>
         </div>
 
         <button id="donateBtn" class="donate-btn">Donate</button>
